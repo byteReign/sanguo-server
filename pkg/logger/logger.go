@@ -13,9 +13,9 @@ var log = logrus.New()
 
 // Config 日志初始化配置
 type Config struct {
-	Level      string // debug / info / warn / error
-	Format     string // json / text
-	OutputPath string // stdout / stderr / 文件路径
+	Level      string `yaml:"level"`  // debug / info / warn / error
+	Format     string `yaml:"format"` // json / text
+	OutputPath string `yaml:"output"` // stdout / stderr / 文件路径
 }
 
 // Init 初始化全局日志实例，应在服务启动时调用
