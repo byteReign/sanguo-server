@@ -72,3 +72,8 @@ Repository（数据读写）
 ↓
 MySQL / Redis
 ```
+
+## 启动命令
+```bash 
+docker compose up -d
+```

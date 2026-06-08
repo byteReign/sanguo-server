@@ -1,1 +1,22 @@
-package configs
+log:
+  level: debug
+  format: json
+  output: log
+
+database:
+  type: mysql
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: root
+  db: sanguo
+  maxOpenConns: 200
+  maxIdleConns: 50
+  connMaxLifetime: 3600
+
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: "123456"
+  db: 0
+  poolSize: 100
