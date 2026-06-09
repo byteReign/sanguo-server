@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/sirupsen/logrus"
 )
 
@@ -13,9 +17,11 @@ var log = logrus.New()
 
 // Config 日志初始化配置
 type Config struct {
-	Level      string `yaml:"level"`  // debug / info / warn / error
-	Format     string `yaml:"format"` // json / text
-	OutputPath string `yaml:"output"` // stdout / stderr / 文件路径
+	Level    string `yaml:"level"`    // debug / info / warn / error
+	Format   string `yaml:"format"`   // json / text
+	Output   string `yaml:"output"`   // stdout / stderr / file
+	FilePath string `yaml:"filePath"` // output=file 时生效，如 logs/app.log
+	MaxAge   int    `yaml:"maxAge"`   // 日志保留天数，默认 7
 }
 
 // Init 初始化全局日志实例，应在服务启动时调用
@@ -40,7 +46,7 @@ func Init(cfg Config) error {
 		return fmt.Errorf("unsupported log format: %s", cfg.Format)
 	}
 
-	output, err := resolveOutput(cfg.OutputPath)
+	output, err := resolveOutput(cfg)
 	if err != nil {
 		return err
 	}
@@ -49,19 +55,57 @@ func Init(cfg Config) error {
 	return nil
 }
 
-func resolveOutput(path string) (io.Writer, error) {
-	switch strings.ToLower(path) {
+func resolveOutput(cfg Config) (io.Writer, error) {
+	switch strings.ToLower(cfg.Output) {
 	case "", "stdout":
 		return os.Stdout, nil
 	case "stderr":
 		return os.Stderr, nil
+	case "file":
+		return newRotateWriter(cfg)
 	default:
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return nil, fmt.Errorf("open log file: %w", err)
-		}
-		return file, nil
+		// 兼容旧配置：output 直接写文件路径
+		cfg.FilePath = cfg.Output
+		cfg.Output = "file"
+		return newRotateWriter(cfg)
 	}
+}
+
+func newRotateWriter(cfg Config) (io.Writer, error) {
+	path := cfg.FilePath
+	if path == "" {
+		path = "logs/app.log"
+	}
+
+	maxAge := cfg.MaxAge
+	if maxAge <= 0 {
+		maxAge = 7
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("create log dir: %w", err)
+	}
+
+	ext := filepath.Ext(path)
+	name := strings.TrimSuffix(filepath.Base(path), ext)
+	pattern := filepath.Join(dir, name+".%Y-%m-%d"+ext)
+
+	opts := []rotatelogs.Option{
+		rotatelogs.WithRotationTime(24 * time.Hour),
+		rotatelogs.WithMaxAge(time.Duration(maxAge) * 24 * time.Hour),
+	}
+	// Windows 创建符号链接需要管理员权限，跳过 WithLinkName，直接写按日期分割的文件
+	if runtime.GOOS != "windows" {
+		opts = append(opts, rotatelogs.WithLinkName(path))
+	}
+
+	writer, err := rotatelogs.New(pattern, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("init rotate log: %w", err)
+	}
+
+	return writer, nil
 }
 
 // Get 返回底层 logrus 实例，便于需要自定义字段等高级场景

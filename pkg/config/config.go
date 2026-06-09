@@ -7,12 +7,14 @@ import (
 	"sanguo-server/pkg/database"
 	"sanguo-server/pkg/logger"
 	"sanguo-server/pkg/redis"
+	"sanguo-server/pkg/server"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Config 应用配置
 type Config struct {
+	Server   server.Config    `yaml:"server"`
 	Log      logger.Config    `yaml:"log"`
 	Database database.Config  `yaml:"database"`
 	Redis    redis.Config     `yaml:"redis"`

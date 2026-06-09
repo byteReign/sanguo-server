@@ -2,9 +2,10 @@ package response
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/gin-gonic/gin"
+
+	"sanguo-server/pkg/errors"
 )
 
 const CodeSuccess = 0
@@ -17,11 +18,8 @@ type Body struct {
 	Meta    interface{} `json:"meta,omitempty"`
 }
 
-// CodeDef 业务码定义，可通过 Register 扩展
-type CodeDef struct {
-	Message    string
-	HTTPStatus int
-}
+// CodeDef 业务码定义
+type CodeDef = errors.CodeDef
 
 // PageMeta 分页元信息
 type PageMeta struct {
@@ -37,30 +35,17 @@ type renderContext struct {
 // Option 响应可选配置，便于后续扩展字段或 HTTP 状态码
 type Option func(*Body, *renderContext)
 
-var (
-	codeRegistry = map[int]CodeDef{
-		CodeSuccess:      {Message: "success", HTTPStatus: http.StatusOK},
-		400:              {Message: "bad request", HTTPStatus: http.StatusBadRequest},
-		401:              {Message: "unauthorized", HTTPStatus: http.StatusUnauthorized},
-		403:              {Message: "forbidden", HTTPStatus: http.StatusForbidden},
-		404:              {Message: "not found", HTTPStatus: http.StatusNotFound},
-		500:              {Message: "internal server error", HTTPStatus: http.StatusInternalServerError},
-	}
-	registryMu sync.RWMutex
-)
+func init() {
+	errors.RegisterCode(CodeSuccess, CodeDef{Message: "success", HTTPStatus: http.StatusOK})
+}
 
 // Register 注册或覆盖业务码，便于各模块扩展自己的错误码
 func Register(code int, def CodeDef) {
-	registryMu.Lock()
-	defer registryMu.Unlock()
-	codeRegistry[code] = def
+	errors.RegisterCode(code, def)
 }
 
 func lookupCode(code int) CodeDef {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
-
-	if def, ok := codeRegistry[code]; ok {
+	if def, ok := errors.LookupCode(code); ok {
 		return def
 	}
 	return CodeDef{Message: "unknown error", HTTPStatus: http.StatusOK}
